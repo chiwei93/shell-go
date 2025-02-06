@@ -42,6 +42,7 @@ func main() {
 			stdOutput, err := cmdFn(args)
 			if err != nil {
 				fmt.Fprint(os.Stderr, err.Error()+"\n")
+				continue
 			}
 
 			fmt.Fprint(os.Stdout, stdOutput)
@@ -49,6 +50,7 @@ func main() {
 			output, err := executeProgram(command, args)
 			if err != nil {
 				fmt.Fprint(os.Stderr, err.Error()+"\n")
+				continue
 			}
 
 			fmt.Fprint(os.Stdout, output)
@@ -61,6 +63,7 @@ func initCommands() {
 	registerCmd("echo", echoCmd)
 	registerCmd("type", typeCmd)
 	registerCmd("pwd", pwdCmd)
+	registerCmd("cd", cdCmd)
 }
 
 func registerCmd(key string, cmdFn CmdFn) {
@@ -99,7 +102,25 @@ func isInPath(command string) bool {
 	return false
 }
 
+func cdCmd(args []string) (string, error) {
+	if len(args) == 0 {
+		return "", errors.New("please provide an argument for the cd command")
+	}
+
+	dirPath := args[0]
+	if _, err := os.Stat(dirPath); errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("cd: %s: No such file or directory", dirPath)
+	}
+
+	os.Setenv(PWD_ENV, dirPath)
+	return "", nil
+}
+
 func pwdCmd(args []string) (string, error) {
+	if len(args) > 0 {
+		return "", errors.New("pwd: too many arguments")
+	}
+
 	res := os.Getenv(PWD_ENV)
 	if res == "" {
 		return "", errors.New("cannot get current working directory")
