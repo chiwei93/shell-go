@@ -75,24 +75,35 @@ func parseUserInput(input string) []string {
 	args := []string{}
 	inSingleQuote := false
 	inDoubleQuote := false
+	escaped := false
 	var current strings.Builder
 	for _, char := range input {
 		switch char {
-		case '"':
-			if inSingleQuote {
+		case '\\':
+			if inSingleQuote || inDoubleQuote {
 				current.WriteRune(char)
+				escaped = false
+			} else {
+				escaped = true
+			}
+		case '"':
+			if inSingleQuote || escaped {
+				current.WriteRune(char)
+				escaped = false
 			} else {
 				inDoubleQuote = !inDoubleQuote
 			}
 		case '\'':
-			if inDoubleQuote {
+			if inDoubleQuote || escaped {
 				current.WriteRune(char)
+				escaped = false
 			} else {
 				inSingleQuote = !inSingleQuote
 			}
 		case ' ':
-			if inSingleQuote || inDoubleQuote {
+			if inSingleQuote || inDoubleQuote || escaped {
 				current.WriteRune(char)
+				escaped = false
 			} else {
 				if current.Len() > 0 {
 					args = append(args, current.String())
