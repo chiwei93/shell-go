@@ -108,6 +108,10 @@ func cdCmd(args []string) (string, error) {
 	}
 
 	dirPath := args[0]
+	if !path.IsAbs(dirPath) {
+		dirPath = path.Join(os.Getenv(PWD_ENV), dirPath)
+	}
+
 	if _, err := os.Stat(dirPath); errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("cd: %s: No such file or directory", dirPath)
 	}
