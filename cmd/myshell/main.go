@@ -41,7 +41,7 @@ func main() {
 
 			fmt.Fprint(os.Stdout, stdOutput)
 		} else {
-			fmt.Printf("%s: command not found\n", input)
+			fmt.Printf("%s: command not found\n", command)
 		}
 	}
 }
@@ -49,10 +49,25 @@ func main() {
 func initCommands() {
 	registerCmd("exit", exitCmd)
 	registerCmd("echo", echoCmd)
+	registerCmd("type", typeCmd)
 }
 
 func registerCmd(key string, cmdFn CmdFn) {
 	builtinCmd[key] = cmdFn
+}
+
+func typeCmd(args []string) (string, error) {
+	if len(args) == 0 {
+		return "", errors.New("please provide an argument for the type command")
+	}
+
+	command := args[0]
+	_, exists := builtinCmd[command]
+	if exists {
+		return fmt.Sprintf("%s is a shell builtin\n", command), nil
+	}
+
+	return fmt.Sprintf("%s: not found\n", command), nil
 }
 
 func echoCmd(args []string) (string, error) {
