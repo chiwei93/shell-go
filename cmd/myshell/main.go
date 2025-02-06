@@ -12,6 +12,7 @@ import (
 )
 
 const PATH_ENV = "PATH"
+const PWD_ENV = "PWD"
 
 type CmdFn = func([]string) (string, error)
 
@@ -59,6 +60,7 @@ func initCommands() {
 	registerCmd("exit", exitCmd)
 	registerCmd("echo", echoCmd)
 	registerCmd("type", typeCmd)
+	registerCmd("pwd", pwdCmd)
 }
 
 func registerCmd(key string, cmdFn CmdFn) {
@@ -95,6 +97,15 @@ func isInPath(command string) bool {
 	}
 
 	return false
+}
+
+func pwdCmd(args []string) (string, error) {
+	res := os.Getenv(PWD_ENV)
+	if res == "" {
+		return "", errors.New("cannot get current working directory")
+	}
+
+	return res + "\n", nil
 }
 
 func typeCmd(args []string) (string, error) {
