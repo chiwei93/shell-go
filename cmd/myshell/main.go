@@ -11,7 +11,7 @@ func main() {
 	fmt.Fprint(os.Stdout, "$ ")
 	input, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	if err != nil {
-		fmt.Printf("Error parsing user input: %v", err)
+		fmt.Printf("Error parsing user input: %s", err.Error())
 		os.Exit(1)
 	}
 
