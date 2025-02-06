@@ -74,13 +74,24 @@ func registerCmd(key string, cmdFn CmdFn) {
 func parseUserInput(input string) []string {
 	args := []string{}
 	inSingleQuote := false
+	inDoubleQuote := false
 	var current strings.Builder
 	for _, char := range input {
 		switch char {
-		case '\'':
-			inSingleQuote = !inSingleQuote
-		case ' ':
+		case '"':
 			if inSingleQuote {
+				current.WriteRune(char)
+			} else {
+				inDoubleQuote = !inDoubleQuote
+			}
+		case '\'':
+			if inDoubleQuote {
+				current.WriteRune(char)
+			} else {
+				inSingleQuote = !inSingleQuote
+			}
+		case ' ':
+			if inSingleQuote || inDoubleQuote {
 				current.WriteRune(char)
 			} else {
 				if current.Len() > 0 {
