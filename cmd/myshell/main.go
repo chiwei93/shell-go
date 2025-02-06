@@ -80,38 +80,53 @@ func parseUserInput(input string) []string {
 	for _, char := range input {
 		switch char {
 		case '\\':
-			if inSingleQuote || inDoubleQuote {
+			if escaped || inSingleQuote {
 				current.WriteRune(char)
 				escaped = false
 			} else {
 				escaped = true
 			}
 		case '"':
-			if inSingleQuote || escaped {
+			if escaped || inSingleQuote {
 				current.WriteRune(char)
-				escaped = false
 			} else {
 				inDoubleQuote = !inDoubleQuote
 			}
+
+			escaped = false
 		case '\'':
-			if inDoubleQuote || escaped {
+			if inDoubleQuote && escaped {
+				current.WriteRune('\\')
+			}
+
+			if escaped || inDoubleQuote {
 				current.WriteRune(char)
-				escaped = false
 			} else {
 				inSingleQuote = !inSingleQuote
 			}
+
+			escaped = false
 		case ' ':
-			if inSingleQuote || inDoubleQuote || escaped {
-				current.WriteRune(char)
-				escaped = false
-			} else {
-				if current.Len() > 0 {
-					args = append(args, current.String())
-					current.Reset()
-				}
+			if inDoubleQuote && escaped {
+				current.WriteRune('\\')
 			}
+
+			if escaped || inSingleQuote || inDoubleQuote {
+				current.WriteRune(char)
+			} else if current.Len() > 0 {
+				args = append(args, current.String())
+				current.Reset()
+
+			}
+
+			escaped = false
 		default:
+			if escaped && inDoubleQuote {
+				current.WriteRune('\\')
+			}
+
 			current.WriteRune(char)
+			escaped = false
 		}
 	}
 
