@@ -34,7 +34,12 @@ func main() {
 		args = args[1:]
 		cmdFn, exist := builtinCmd[command]
 		if exist {
-			cmdFn(args)
+			stdOutput, err := cmdFn(args)
+			if err != nil {
+				fmt.Fprint(os.Stderr, err.Error())
+			}
+
+			fmt.Fprint(os.Stdout, stdOutput)
 		} else {
 			fmt.Printf("%s: command not found\n", input)
 		}
@@ -43,10 +48,19 @@ func main() {
 
 func initCommands() {
 	registerCmd("exit", exitCmd)
+	registerCmd("echo", echoCmd)
 }
 
 func registerCmd(key string, cmdFn CmdFn) {
 	builtinCmd[key] = cmdFn
+}
+
+func echoCmd(args []string) (string, error) {
+	if len(args) == 0 {
+		return "", errors.New("please provide an argument for the echo command")
+	}
+
+	return strings.Join(args, " ") + "\n", nil
 }
 
 func exitCmd(args []string) (string, error) {
