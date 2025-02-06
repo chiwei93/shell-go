@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"strings"
@@ -39,12 +40,17 @@ func main() {
 		if exist {
 			stdOutput, err := cmdFn(args)
 			if err != nil {
-				fmt.Fprint(os.Stderr, err.Error())
+				fmt.Fprint(os.Stderr, err.Error()+"\n")
 			}
 
 			fmt.Fprint(os.Stdout, stdOutput)
 		} else {
-			fmt.Printf("%s: command not found\n", command)
+			output, err := executeProgram(command, args)
+			if err != nil {
+				fmt.Fprint(os.Stderr, err.Error()+"\n")
+			}
+
+			fmt.Fprint(os.Stdout, output)
 		}
 	}
 }
@@ -57,6 +63,38 @@ func initCommands() {
 
 func registerCmd(key string, cmdFn CmdFn) {
 	builtinCmd[key] = cmdFn
+}
+
+func executeProgram(command string, args []string) (string, error) {
+	if isInPath(command) {
+		cmd := exec.Command(command, args...)
+		output, err := cmd.Output()
+		res := string(output)
+		if err != nil {
+			if stderr, ok := err.(*exec.ExitError); ok {
+				res += string(stderr.Stderr)
+			} else {
+				return "", err
+			}
+		}
+
+		return res, nil
+	}
+
+	return fmt.Sprintf("%s: command not found\n", command), nil
+}
+
+func isInPath(command string) bool {
+	paths := strings.Split(os.Getenv(PATH_ENV), ":")
+	for _, p := range paths {
+		filePath := path.Join(p, command)
+		_, err := os.Stat(filePath)
+		if !errors.Is(err, os.ErrNotExist) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func typeCmd(args []string) (string, error) {
