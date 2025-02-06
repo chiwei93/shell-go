@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 )
+
+const PATH_ENV = "PATH"
 
 type CmdFn = func([]string) (string, error)
 
@@ -67,7 +70,18 @@ func typeCmd(args []string) (string, error) {
 		return fmt.Sprintf("%s is a shell builtin\n", command), nil
 	}
 
-	return fmt.Sprintf("%s: not found\n", command), nil
+	paths := strings.Split(os.Getenv(PATH_ENV), ":")
+	output := fmt.Sprintf("%s: not found", command)
+	for _, p := range paths {
+		filePath := path.Join(p, command)
+		_, err := os.Stat(filePath)
+		if !errors.Is(err, os.ErrNotExist) {
+			output = fmt.Sprintf("%s is %s", command, filePath)
+			break
+		}
+	}
+
+	return output + "\n", nil
 }
 
 func echoCmd(args []string) (string, error) {
