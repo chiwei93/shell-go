@@ -13,6 +13,7 @@ import (
 
 const PATH_ENV = "PATH"
 const PWD_ENV = "PWD"
+const HOME_ENV = "HOME"
 
 type CmdFn = func([]string) (string, error)
 
@@ -109,7 +110,11 @@ func cdCmd(args []string) (string, error) {
 
 	dirPath := args[0]
 	if !path.IsAbs(dirPath) {
-		dirPath = path.Join(os.Getenv(PWD_ENV), dirPath)
+		if strings.Contains(dirPath, "~") {
+			dirPath = strings.ReplaceAll(dirPath, "~", os.Getenv(HOME_ENV))
+		} else {
+			dirPath = path.Join(os.Getenv(PWD_ENV), dirPath)
+		}
 	}
 
 	if _, err := os.Stat(dirPath); errors.Is(err, os.ErrNotExist) {
