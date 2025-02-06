@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -38,6 +39,11 @@ func main() {
 
 		command := args[0]
 		args = args[1:]
+		redirectIndex, redirectArgs := getRedirectArgs(args)
+		if redirectIndex >= 0 {
+			args = args[:redirectIndex]
+		}
+
 		cmdFn, exist := builtinCmd[command]
 		if exist {
 			stdOutput, err := cmdFn(args)
@@ -46,15 +52,24 @@ func main() {
 				continue
 			}
 
-			fmt.Fprint(os.Stdout, stdOutput)
+			if redirectIndex >= 0 {
+				writeFile(stdOutput, redirectArgs)
+			} else {
+				fmt.Fprint(os.Stdout, stdOutput)
+			}
 		} else {
-			output, err := executeProgram(command, args)
-			if err != nil {
-				fmt.Fprint(os.Stderr, err.Error()+"\n")
-				continue
+			output, errMsgs := executeProgram(command, args)
+			if len(errMsgs) > 0 {
+				for _, msg := range errMsgs {
+					fmt.Fprint(os.Stderr, msg)
+				}
 			}
 
-			fmt.Fprint(os.Stdout, output)
+			if redirectIndex >= 0 {
+				writeFile(output, redirectArgs)
+			} else {
+				fmt.Fprint(os.Stdout, output)
+			}
 		}
 	}
 }
@@ -69,6 +84,30 @@ func initCommands() {
 
 func registerCmd(key string, cmdFn CmdFn) {
 	builtinCmd[key] = cmdFn
+}
+
+func writeFile(result string, args []string) error {
+	if len(args) == 0 {
+		return errors.New("please provide an argument for the redirection")
+	}
+
+	err := os.WriteFile(args[0], []byte(result), 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func getRedirectArgs(args []string) (int, []string) {
+	redirectIndex := slices.IndexFunc(args, func(n string) bool {
+		return strings.EqualFold(n, "1>") || strings.EqualFold(n, ">")
+	})
+	if redirectIndex < 0 {
+		return redirectIndex, []string{}
+	}
+
+	return redirectIndex, args[redirectIndex+1:]
 }
 
 func parseUserInput(input string) []string {
@@ -116,7 +155,6 @@ func parseUserInput(input string) []string {
 			} else if current.Len() > 0 {
 				args = append(args, current.String())
 				current.Reset()
-
 			}
 
 			escaped = false
@@ -137,23 +175,23 @@ func parseUserInput(input string) []string {
 	return args
 }
 
-func executeProgram(command string, args []string) (string, error) {
+func executeProgram(command string, args []string) (string, []string) {
 	if isInPath(command) {
 		cmd := exec.Command(command, args...)
 		output, err := cmd.Output()
-		res := string(output)
+		errMsgs := []string{}
 		if err != nil {
 			if stderr, ok := err.(*exec.ExitError); ok {
-				res += string(stderr.Stderr)
+				errMsgs = append(errMsgs, string(stderr.Stderr))
 			} else {
-				return "", err
+				errMsgs = append(errMsgs, err.Error())
 			}
 		}
 
-		return res, nil
+		return string(output), errMsgs
 	}
 
-	return fmt.Sprintf("%s: command not found\n", command), nil
+	return fmt.Sprintf("%s: command not found\n", command), []string{}
 }
 
 func isInPath(command string) bool {
