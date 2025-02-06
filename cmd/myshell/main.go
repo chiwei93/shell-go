@@ -30,7 +30,7 @@ func main() {
 		}
 
 		input = strings.TrimSpace(input)
-		args := strings.Fields(input)
+		args := parseUserInput(input)
 		if len(args) == 0 {
 			fmt.Println("Please provide a command")
 			continue
@@ -69,6 +69,35 @@ func initCommands() {
 
 func registerCmd(key string, cmdFn CmdFn) {
 	builtinCmd[key] = cmdFn
+}
+
+func parseUserInput(input string) []string {
+	args := []string{}
+	inSingleQuote := false
+	var current strings.Builder
+	for _, char := range input {
+		switch char {
+		case '\'':
+			inSingleQuote = !inSingleQuote
+		case ' ':
+			if inSingleQuote {
+				current.WriteRune(char)
+			} else {
+				if current.Len() > 0 {
+					args = append(args, current.String())
+					current.Reset()
+				}
+			}
+		default:
+			current.WriteRune(char)
+		}
+	}
+
+	if current.Len() > 0 {
+		args = append(args, current.String())
+	}
+
+	return args
 }
 
 func executeProgram(command string, args []string) (string, error) {
