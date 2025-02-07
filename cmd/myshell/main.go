@@ -109,6 +109,15 @@ func redirect(output, errorOutput string, redirectedArgs []string) {
 		if err != nil {
 			fmt.Fprint(os.Stdout, err.Error())
 		}
+	case ">>", "1>>":
+		file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			fmt.Fprint(os.Stdout, err.Error())
+			return
+		}
+
+		defer file.Close()
+		file.WriteString(output)
 	default:
 		err := os.WriteFile(filePath, []byte(output), 0644)
 		if err != nil {
@@ -118,7 +127,8 @@ func redirect(output, errorOutput string, redirectedArgs []string) {
 }
 
 func isRedirectSymbol(operator string) bool {
-	return strings.EqualFold(operator, "1>") || strings.EqualFold(operator, ">") || strings.EqualFold(operator, "2>")
+	operators := []string{"1>", ">", "2>", ">>", "1>>"}
+	return slices.Index(operators, operator) >= 0
 }
 
 func parseUserInput(input string) []string {
