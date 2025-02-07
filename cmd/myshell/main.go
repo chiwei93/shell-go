@@ -40,7 +40,7 @@ func main() {
 		command := args[0]
 		args = args[1:]
 		redirectIndex := slices.IndexFunc(args, func(n string) bool {
-			return isRedirectSymbol(n)
+			return isRedirectOperator(n)
 		})
 		redirectArgs := []string{}
 		if redirectIndex >= 0 {
@@ -65,7 +65,7 @@ func main() {
 		} else {
 			output, errMsg := executeProgram(command, args)
 			if errMsg != "" {
-				if redirectIndex >= 0 && redirectArgs[0] != "2>" {
+				if redirectIndex >= 0 && redirectArgs[0] != "2>" && redirectArgs[0] != "2>>" {
 					fmt.Fprint(os.Stderr, errMsg)
 				}
 			}
@@ -109,6 +109,19 @@ func redirect(output, errorOutput string, redirectedArgs []string) {
 		if err != nil {
 			fmt.Fprint(os.Stdout, err.Error())
 		}
+	case "2>>":
+		if output != "" {
+			fmt.Fprint(os.Stdout, output)
+		}
+
+		file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			fmt.Fprint(os.Stdout, err.Error())
+			return
+		}
+
+		defer file.Close()
+		file.WriteString(errorOutput)
 	case ">>", "1>>":
 		file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
@@ -126,8 +139,8 @@ func redirect(output, errorOutput string, redirectedArgs []string) {
 	}
 }
 
-func isRedirectSymbol(operator string) bool {
-	operators := []string{"1>", ">", "2>", ">>", "1>>"}
+func isRedirectOperator(operator string) bool {
+	operators := []string{"1>", ">", "2>", ">>", "1>>", "2>>"}
 	return slices.Index(operators, operator) >= 0
 }
 
