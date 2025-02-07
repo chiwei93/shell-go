@@ -39,34 +39,39 @@ func main() {
 
 		command := args[0]
 		args = args[1:]
-		redirectIndex, redirectArgs := getRedirectArgs(args)
+		redirectIndex := slices.IndexFunc(args, func(n string) bool {
+			return isRedirectSymbol(n)
+		})
+		redirectArgs := []string{}
 		if redirectIndex >= 0 {
+			redirectArgs = args[redirectIndex:]
 			args = args[:redirectIndex]
 		}
 
 		cmdFn, exist := builtinCmd[command]
 		if exist {
 			stdOutput, err := cmdFn(args)
+			var errorMsg string
 			if err != nil {
-				fmt.Fprint(os.Stderr, err.Error()+"\n")
-				continue
+				errorMsg = err.Error()
+				fmt.Fprint(os.Stderr, errorMsg+"\n")
 			}
 
 			if redirectIndex >= 0 {
-				writeFile(stdOutput, redirectArgs)
+				redirect(stdOutput, errorMsg, redirectArgs)
 			} else {
 				fmt.Fprint(os.Stdout, stdOutput)
 			}
 		} else {
-			output, errMsgs := executeProgram(command, args)
-			if len(errMsgs) > 0 {
-				for _, msg := range errMsgs {
-					fmt.Fprint(os.Stderr, msg)
+			output, errMsg := executeProgram(command, args)
+			if errMsg != "" {
+				if redirectIndex >= 0 && redirectArgs[0] != "2>" {
+					fmt.Fprint(os.Stderr, errMsg)
 				}
 			}
 
 			if redirectIndex >= 0 {
-				writeFile(output, redirectArgs)
+				redirect(output, errMsg, redirectArgs)
 			} else {
 				fmt.Fprint(os.Stdout, output)
 			}
@@ -86,28 +91,34 @@ func registerCmd(key string, cmdFn CmdFn) {
 	builtinCmd[key] = cmdFn
 }
 
-func writeFile(result string, args []string) error {
-	if len(args) == 0 {
-		return errors.New("please provide an argument for the redirection")
+func redirect(output, errorOutput string, redirectedArgs []string) {
+	if len(redirectedArgs) < 2 {
+		fmt.Fprint(os.Stdout, "please provide valid arguments for redirection")
+		return
 	}
 
-	err := os.WriteFile(args[0], []byte(result), 0644)
-	if err != nil {
-		return err
-	}
+	redirectOperator := redirectedArgs[0]
+	filePath := redirectedArgs[1]
+	switch redirectOperator {
+	case "2>":
+		if output != "" {
+			fmt.Fprint(os.Stdout, output)
+		}
 
-	return nil
+		err := os.WriteFile(filePath, []byte(errorOutput), 0644)
+		if err != nil {
+			fmt.Fprint(os.Stdout, err.Error())
+		}
+	default:
+		err := os.WriteFile(filePath, []byte(output), 0644)
+		if err != nil {
+			fmt.Fprint(os.Stdout, err.Error())
+		}
+	}
 }
 
-func getRedirectArgs(args []string) (int, []string) {
-	redirectIndex := slices.IndexFunc(args, func(n string) bool {
-		return strings.EqualFold(n, "1>") || strings.EqualFold(n, ">")
-	})
-	if redirectIndex < 0 {
-		return redirectIndex, []string{}
-	}
-
-	return redirectIndex, args[redirectIndex+1:]
+func isRedirectSymbol(operator string) bool {
+	return strings.EqualFold(operator, "1>") || strings.EqualFold(operator, ">") || strings.EqualFold(operator, "2>")
 }
 
 func parseUserInput(input string) []string {
@@ -175,23 +186,23 @@ func parseUserInput(input string) []string {
 	return args
 }
 
-func executeProgram(command string, args []string) (string, []string) {
+func executeProgram(command string, args []string) (string, string) {
 	if isInPath(command) {
 		cmd := exec.Command(command, args...)
 		output, err := cmd.Output()
-		errMsgs := []string{}
+		var errMsg string
 		if err != nil {
 			if stderr, ok := err.(*exec.ExitError); ok {
-				errMsgs = append(errMsgs, string(stderr.Stderr))
+				errMsg = string(stderr.Stderr)
 			} else {
-				errMsgs = append(errMsgs, err.Error())
+				errMsg = err.Error()
 			}
 		}
 
-		return string(output), errMsgs
+		return string(output), errMsg
 	}
 
-	return fmt.Sprintf("%s: command not found\n", command), []string{}
+	return fmt.Sprintf("%s: command not found\n", command), ""
 }
 
 func isInPath(command string) bool {
