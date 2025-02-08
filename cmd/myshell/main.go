@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -15,9 +16,11 @@ import (
 	"golang.org/x/term"
 )
 
-const PATH_ENV = "PATH"
-const PWD_ENV = "PWD"
-const HOME_ENV = "HOME"
+const (
+	PATH_ENV = "PATH"
+	PWD_ENV  = "PWD"
+	HOME_ENV = "HOME"
+)
 
 type CmdFn = func([]string) (string, error)
 
@@ -28,7 +31,6 @@ func main() {
 	for {
 		fmt.Fprint(os.Stdout, "$ ")
 		input := readInput(os.Stdin)
-
 		input = strings.TrimSpace(input)
 		args := parseUserInput(input)
 		if len(args) == 0 {
@@ -95,67 +97,84 @@ func readInput(rd io.Reader) string {
 	if err != nil {
 		panic(err)
 	}
+
 	defer term.Restore(int(os.Stdin.Fd()), oldState)
+
 	reader := bufio.NewReader(rd)
+	var buffer bytes.Buffer
 	var input string
+	var tabCount int
 
 loop:
 	for {
-		char, _, err := reader.ReadRune()
+		b, err := reader.ReadByte()
 		if err != nil {
-			fmt.Println(err)
-			continue
+			break
 		}
 
-		switch char {
-		// ctrl + c
-		case '\x03':
-			fmt.Print("^C\n\r$ ")
-			os.Exit(0)
-		// enter
-		case '\n', '\r':
-			fmt.Fprintf(os.Stdout, "\r\n")
-			break loop
-		// backspace
+		switch rune(b) {
+		// backspace key
 		case '\x7F':
-			if len(input) > 0 {
-				input = input[:len(input)-1]
+			if buffer.Len() > 0 {
+				buffer.Truncate(buffer.Len() - 1)
 				fmt.Fprint(os.Stdout, "\b \b")
 			}
-		// tab
+		// enter key
+		case '\n', '\r':
+			input = buffer.String()
+			buffer.Reset()
+			fmt.Fprintf(os.Stdout, "\r\n")
+			break loop
+		// tab key
 		case '\t':
-			completion := autocomplete(input)
-			if completion != "" {
-				input = completion
-			}
+			str := strings.Fields(buffer.String())
+			substring := str[len(str)-1]
+			matches := getAutoCompletions(substring)
+			tabCount++
 
-			fmt.Fprintf(os.Stdout, "\r\033[K$ %s", input)
+			if len(matches) == 0 {
+				fmt.Fprint(os.Stdout, "\a")
+			} else if len(matches) == 1 {
+				buffer.Truncate(buffer.Len() - len(substring))
+				buffer.WriteString(matches[0] + " ")
+				tabCount = 0
+			} else {
+				if tabCount < 2 {
+					fmt.Print("\a")
+				} else if tabCount >= 2 {
+					fmt.Printf("\r\n%s\n\r", strings.Join(matches, "  "))
+					tabCount = 0
+				}
+
+				redrawLine(&buffer)
+				continue
+			}
 		default:
-			input += string(char)
-			fmt.Fprint(os.Stdout, string(char))
+			buffer.WriteByte(b)
 		}
+
+		// rewrites the buffer each time we type a char
+		redrawLine(&buffer)
 	}
 
 	return input
 }
 
-func autocomplete(input string) string {
-	if input == "" {
-		return ""
+func redrawLine(buffer *bytes.Buffer) {
+	fmt.Print("\r\x1b[K")
+	fmt.Printf("$ %s", buffer.String())
+	fmt.Print("\x1b[?25h")
+}
+
+func getAutoCompletions(prefix string) []string {
+	var matches []string
+	if len(prefix) == 0 {
+		return matches
 	}
 
-	r := len(input) - 1
-	for r >= 0 && input[r] != ' ' {
-		r -= 1
-	}
-
-	r++
-	prefix := input[r:]
-	first := input[:r]
-	res := "" + first
 	for key := range builtinCmd {
-		if strings.Contains(key, prefix) {
-			return res + key + " "
+		if strings.HasPrefix(key, prefix) {
+			matches = append(matches, key)
 		}
 	}
 
@@ -169,14 +188,15 @@ func autocomplete(input string) string {
 				}
 
 				fileName := file.Name()
-				if strings.HasPrefix(fileName, prefix) {
-					return res + fileName + " "
+				if strings.HasPrefix(fileName, prefix) && !slices.Contains(matches, fileName) {
+					matches = append(matches, fileName)
 				}
 			}
 		}
 	}
 
-	return res + prefix + "\a"
+	slices.Sort(matches)
+	return matches
 }
 
 func redirect(output, errorOutput string, redirectedArgs []string) {
