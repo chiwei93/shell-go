@@ -125,7 +125,7 @@ loop:
 				input = completion
 			}
 
-			fmt.Fprintf(os.Stdout, "\r\033[K$ %s ", input)
+			fmt.Fprintf(os.Stdout, "\r\033[K$ %s", input)
 		default:
 			input += string(char)
 			fmt.Fprint(os.Stdout, string(char))
@@ -135,18 +135,28 @@ loop:
 	return input
 }
 
-func autocomplete(prefix string) string {
-	if prefix == "" {
+func autocomplete(input string) string {
+	if input == "" {
 		return ""
 	}
 
+	r := len(input) - 1
+	for r >= 0 && input[r] != ' ' {
+		r -= 1
+	}
+
+	r++
+	prefix := input[r:]
+	first := input[:r]
+	res := "" + first
 	for key := range builtinCmd {
 		if strings.Contains(key, prefix) {
-			return key
+			res += key
+			break
 		}
 	}
 
-	return ""
+	return res + " "
 }
 
 func redirect(output, errorOutput string, redirectedArgs []string) {
