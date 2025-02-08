@@ -159,6 +159,23 @@ func autocomplete(input string) string {
 		}
 	}
 
+	directories := strings.Split(os.Getenv(PATH_ENV), ":")
+	for _, directory := range directories {
+		files, err := os.ReadDir(directory)
+		if err == nil {
+			for _, file := range files {
+				if file.IsDir() {
+					continue
+				}
+
+				fileName := file.Name()
+				if strings.HasPrefix(fileName, prefix) {
+					return res + fileName + " "
+				}
+			}
+		}
+	}
+
 	return res + prefix + "\a"
 }
 
