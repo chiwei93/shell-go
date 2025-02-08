@@ -139,7 +139,11 @@ loop:
 				buffer.WriteString(matches[0] + " ")
 				tabCount = 0
 			} else {
-				if tabCount < 2 {
+				longestPrefix := getLongestPrefix(matches)
+				if longestPrefix != "" {
+					buffer.Reset()
+					buffer.WriteString(longestPrefix)
+				} else if tabCount < 2 {
 					fmt.Print("\a")
 				} else if tabCount >= 2 {
 					fmt.Printf("\r\n%s\n\r", strings.Join(matches, "  "))
@@ -164,6 +168,34 @@ func redrawLine(buffer *bytes.Buffer) {
 	fmt.Print("\r\x1b[K")
 	fmt.Printf("$ %s", buffer.String())
 	fmt.Print("\x1b[?25h")
+}
+
+// func getLongestPrefixLength(prefix, match string) int {
+// 	res := 0
+// 	for i, char := range prefix {
+// 		if rune(match[i]) != char {
+// 			break
+// 		}
+
+// 		res++
+// 	}
+
+// 	return res
+// }
+
+func getLongestPrefix(matches []string) string {
+	if len(matches) <= 0 {
+		return ""
+	}
+
+	longestCommonPrefix := matches[0]
+	for _, match := range matches[1:] {
+		if !strings.HasPrefix(match, longestCommonPrefix) {
+			return ""
+		}
+	}
+
+	return longestCommonPrefix
 }
 
 func getAutoCompletions(prefix string) []string {
