@@ -108,6 +108,10 @@ loop:
 		}
 
 		switch char {
+		// ctrl + c
+		case '\x03':
+			fmt.Print("^C\n\r$ ")
+			os.Exit(0)
 		// enter
 		case '\n', '\r':
 			fmt.Fprintf(os.Stdout, "\r\n")
@@ -151,12 +155,11 @@ func autocomplete(input string) string {
 	res := "" + first
 	for key := range builtinCmd {
 		if strings.Contains(key, prefix) {
-			res += key
-			break
+			return res + key + " "
 		}
 	}
 
-	return res + " "
+	return res + prefix + "\a"
 }
 
 func redirect(output, errorOutput string, redirectedArgs []string) {
