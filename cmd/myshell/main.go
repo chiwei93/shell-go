@@ -4,12 +4,15 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
 	"slices"
 	"strconv"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 const PATH_ENV = "PATH"
@@ -24,11 +27,7 @@ func main() {
 	initCommands()
 	for {
 		fmt.Fprint(os.Stdout, "$ ")
-		input, err := bufio.NewReader(os.Stdin).ReadString('\n')
-		if err != nil {
-			fmt.Printf("Error parsing user input: %s", err.Error())
-			os.Exit(1)
-		}
+		input := readInput(os.Stdin)
 
 		input = strings.TrimSpace(input)
 		args := parseUserInput(input)
@@ -89,6 +88,65 @@ func initCommands() {
 
 func registerCmd(key string, cmdFn CmdFn) {
 	builtinCmd[key] = cmdFn
+}
+
+func readInput(rd io.Reader) string {
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		panic(err)
+	}
+	defer term.Restore(int(os.Stdin.Fd()), oldState)
+	reader := bufio.NewReader(rd)
+	var input string
+
+loop:
+	for {
+		char, _, err := reader.ReadRune()
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+
+		switch char {
+		// enter
+		case '\n', '\r':
+			fmt.Fprintf(os.Stdout, "\r\n")
+			break loop
+		// backspace
+		case '\x7F':
+			if len(input) > 0 {
+				input = input[:len(input)-1]
+				fmt.Fprint(os.Stdout, "\b \b")
+			}
+		// tab
+		case '\t':
+			completion := autocomplete(input)
+			if completion != "" {
+				input = completion
+			}
+
+			fmt.Fprintf(os.Stdout, "\r\033[K$ %s ", input)
+		default:
+			input += string(char)
+			fmt.Fprint(os.Stdout, string(char))
+		}
+	}
+
+	return input
+}
+
+func autocomplete(prefix string) string {
+	if prefix == "" {
+		return ""
+	}
+
+	for key := range builtinCmd {
+		if strings.Contains(key, prefix) {
+			return key
+		}
+	}
+
+	return ""
 }
 
 func redirect(output, errorOutput string, redirectedArgs []string) {
